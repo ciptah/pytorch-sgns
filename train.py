@@ -3,6 +3,7 @@
 import time
 import pickle
 import numpy as np
+import torch
 
 from torch.optim import SGD
 from torch.utils.data import Dataset, DataLoader
@@ -19,17 +20,23 @@ class PermutedCorpus(Dataset):
 
     def __getitem__(self, idx):
         iword, owords = self.data[idx]
-        return iword, np.array(owords)
+        return iword, torch.LongTensor(np.array(owords))
 
 
-def train(gpu=False):
-    num_epochs = 2
-    batch_size = 256
+def train(use_gpu=False):
+    num_epochs = 10
+    batch_size = 1024
     every = 10
     vocab = pickle.load(open('./data/vocab.dat', 'rb'))
     V = len(vocab)
     word2vec = Word2Vec(V=V, gpu=gpu)
-    sgns = SGNS(V=V, embedding=word2vec, batch_size=batch_size, window_size=4, n_negatives=5)
+    sgns = SGNS(
+            # TODO(cipta): change
+            max_firm=91924, # Initial sample of the data
+            embedding=word2vec,
+            batch_size=batch_size,
+            window_size=1,
+            n_negatives=5)
     optimizer = SGD(sgns.parameters(), 5e-1)
     dataset = PermutedCorpus('./data/train.dat')
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)

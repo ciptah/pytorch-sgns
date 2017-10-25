@@ -51,9 +51,10 @@ class Word2Vec(Bundler):
 
 class SGNS(nn.Module):
 
-    def __init__(self, V, embedding, batch_size=128, window_size=4, n_negatives=5):
+    def __init__(
+            self, max_firm, embedding, batch_size=128, window_size=4, n_negatives=5):
         super(SGNS, self).__init__()
-        self.V = V + 1
+        self.max_firm = max_firm
         self.embedding = embedding
         self.batch_size = batch_size
         self.window_size = window_size
@@ -70,7 +71,7 @@ class SGNS(nn.Module):
                 while True:
                     if len(negs) >= self.n_negatives:
                         break
-                    idx = random.randrange(1, self.V)
+                    idx = random.randrange(0, self.max_firm + 1)
                     if (idx == iword) or (idx in owords) or (idx in negs):
                         continue
                     negs.append(idx)
