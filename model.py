@@ -63,12 +63,48 @@ class SGNS(nn.Module):
         assert isinstance(embedding, Word2Vec), 'embedding must be Word2Vec'
         assert self.use_gpu == embedding.use_gpu, 'use_gpu must be consistent'
 
-    def forward(self, iword, owords):
+    def forward(self, _unused, data):
+        '''Returns:
+            loss - number to optimize
+            details - loss broken down'''
+        sgns_loss = self.sgns_loss(
+                data['product'],
+                data['winner'],
+                data['negatives'])
+        return sgns_loss, {
+            'sgns_loss': sgns_loss
+            # TODO: dollar loss
+        }
+
+    def sgns_loss(self, iword, oword, nwords):
+        '''iword: the given "target" word (product)
+           oword: the "context" to predict (firm)
+           nwords: the negatives (losing firms)'''
+        if self.debugging:
+            batch_size = iword.size(0)
+            assert iword.size() == (batch_size,)
+            assert oword.size() == (batch_size,)
+            assert nwords.dim() == 2
+            assert nwords.size(0) == batch_size
+
         # black magic from https://github.com/kefirski/pytorch_NEG_loss
-        nwords = self.sample(iword, owords)
-        ivectors = self.embedding.forward_i(LongTensor(iword).repeat(1, self.window_size).contiguous().view(-1))
-        ovectors = self.embedding.forward_o(LongTensor(owords).contiguous().view(-1))
-        nvectors = self.embedding.forward_o(LongTensor(nwords).contiguous().view(self.batch_size * self.window_size, -1)).neg()
+        ivectors = self.embedding(iword)
+        ovectors = self.embedding(oword)
+        nvectors = self.embedding(nwords.view(self.batch_size, -1)).neg()
+
+        if self.debugging:
+            batch_size = iword.size(0)
+            n_neg = nwords.size(1)
+            assert nvectors.size() == (batch_size, embedding.embedding_dim, n_neg)
+
         oloss = (ivectors * ovectors).sum(1).squeeze().sigmoid().log()
         nloss = torch.bmm(nvectors, ivectors.unsqueeze(2)).sigmoid().log().sum(1).squeeze()
+
+        if self.debugging:
+            batch_size = iword.size(0)
+            n_neg = nwords.size(1)
+            assert oloss.size == (batch_size,)
+            assert nloss.size == (batch_size, n_neg)
+
+        # oloss + nloss will broadcast oloss.
         return -(oloss + nloss).sum() / self.batch_size
