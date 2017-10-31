@@ -32,7 +32,7 @@ class Word2Vec(Bundler):
         self.embedding_dim = embedding_dim
         self.use_gpu = use_gpu
         self.vectors = nn.Embedding(self.vocab_size, self.embedding_dim)
-        if self.gpu:
+        if self.use_gpu:
             self.vectors = self.vectors.cuda()
 
     def forward(self, data):
@@ -40,7 +40,7 @@ class Word2Vec(Bundler):
         
         data = a list of ints'''
         v = Variable(LongTensor(data), requires_grad=False)
-        if self.gpu:
+        if self.use_gpu:
             v = v.cuda()
         return self.vectors(v)
 
