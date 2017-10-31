@@ -21,63 +21,47 @@ class Bundler(nn.Module):
 
 
 class Word2Vec(Bundler):
+    '''Modified Word2Vec with combined product/firm embeddings.'''
 
-    def __init__(self, V, d=50, padding_idx=0, gpu=False):
+    def __init__(self,
+            vocab_size,
+            embedding_dim=30,
+            use_gpu=False):
         super(Word2Vec, self).__init__()
-        self.V = V + 1
-        self.d = d
-        self.gpu = gpu
-        self.ivectors = nn.Embedding(self.V, self.d, padding_idx=padding_idx, sparse=True)
-        self.ovectors = nn.Embedding(self.V, self.d, padding_idx=padding_idx, sparse=True)
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
+        self.use_gpu = use_gpu
+        self.vectors = nn.Embedding(self.vocab_size, self.embedding_dim)
         if self.gpu:
-            self.ivectors = self.ivectors.cuda()
-            self.ovectors = self.ovectors.cuda()
+            self.vectors = self.vectors.cuda()
 
     def forward(self, data):
-        return self.forward_i(data)
-
-    def forward_i(self, data):
+        '''Turns a batch of IDs into vectors.
+        
+        data = a list of ints'''
         v = Variable(LongTensor(data), requires_grad=False)
         if self.gpu:
             v = v.cuda()
-        return self.ivectors(v)
-
-    def forward_o(self, data):
-        v = Variable(LongTensor(data), requires_grad=False)
-        if self.gpu:
-            v = v.cuda()
-        return self.ovectors(v)
+        return self.vectors(v)
 
 
 class SGNS(nn.Module):
+    '''Industry Classification SGNS (Skip-Gram Negative Sampling)'''
 
     def __init__(
-            self, max_firm, embedding, batch_size=128, window_size=4, n_negatives=5):
+            self, embedding,
+            debugging=False,
+            use_gpu=False):
+        '''Params:
+        embedding - Word2Vec instance
+        '''
         super(SGNS, self).__init__()
-        self.max_firm = max_firm
         self.embedding = embedding
-        self.batch_size = batch_size
-        self.window_size = window_size
-        self.n_negatives = n_negatives
+        self.debugging = debugging
+        self.use_gpu = use_gpu
 
-    def sample(self, iword_b, owords_b):
-        nwords_b = []
-        for b in range(self.batch_size):
-            iword = iword_b[b]
-            owords = owords_b[b]
-            nwords = []
-            for oword in owords:
-                negs = []
-                while True:
-                    if len(negs) >= self.n_negatives:
-                        break
-                    idx = random.randrange(0, self.max_firm + 1)
-                    if (idx == iword) or (idx in owords) or (idx in negs):
-                        continue
-                    negs.append(idx)
-                nwords.append(negs)
-            nwords_b.append(nwords)
-        return nwords_b
+        assert isinstance(embedding, Word2Vec), 'embedding must be Word2Vec'
+        assert self.use_gpu == embedding.use_gpu, 'use_gpu must be consistent'
 
     def forward(self, iword, owords):
         # black magic from https://github.com/kefirski/pytorch_NEG_loss
